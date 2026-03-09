@@ -51,15 +51,19 @@ def run_pipeline(image_path=None):
     # ------------------ REFINEMENT ------------------
 
     refined = refine_mask(segmentation)
-    
+
     # ------------------ TUMOR ANALYSIS ------------------
 
     tumor_area = np.sum(refined > 0)
 
-    print("Tumor detected")
+    if tumor_area > 0:
+        print("Tumor detected")
+    else:
+        print("No tumor detected")
+
     print("Area:", tumor_area, "pixels")
 
-    # Simple severity estimation
+    # Severity estimation
     if tumor_area < 1000:
         severity = "Low"
     elif tumor_area < 3000:
@@ -73,13 +77,13 @@ def run_pipeline(image_path=None):
 
     plt.figure(figsize=(12, 4))
 
-    # Original
+    # Original MRI
     plt.subplot(1, 3, 1)
     plt.title("Original MRI Slice")
     plt.imshow(slice_img, cmap="gray")
     plt.axis("off")
 
-    # Detection
+    # YOLO Detection
     plt.subplot(1, 3, 2)
     plt.title("YOLO Tumor Detection")
     plt.imshow(slice_img, cmap="gray")
@@ -99,11 +103,22 @@ def run_pipeline(image_path=None):
 
     plt.axis("off")
 
-    # Segmentation
+    # SAM Segmentation
     plt.subplot(1, 3, 3)
     plt.title("SAM Tumor Segmentation")
     plt.imshow(slice_img, cmap="gray")
     plt.imshow(refined, cmap="jet", alpha=0.5)
+
+    # Overlay tumor analysis text
+    plt.text(
+        10,
+        20,
+        f"Area: {tumor_area} px\nSeverity: {severity}",
+        color="white",
+        fontsize=12,
+        bbox=dict(facecolor="black", alpha=0.6)
+    )
+
     plt.axis("off")
 
     plt.tight_layout()
