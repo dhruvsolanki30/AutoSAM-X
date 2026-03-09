@@ -1,11 +1,19 @@
-# Preprocessing module
 import numpy as np
+import cv2
 
-def normalize_mri(image):
+def preprocess_slice(slice_img):
     """
-    Normalize MRI image to 0–1 range
+    Normalize MRI slice and apply CLAHE
     """
-    image = image.astype(np.float32)
-    image = (image - np.min(image)) / (np.max(image) - np.min(image) + 1e-8)
-    return image
 
+    slice_img = slice_img.astype(np.float32)
+
+    slice_img = (slice_img - slice_img.min()) / (slice_img.max() - slice_img.min() + 1e-8)
+
+    slice_img = (slice_img * 255).astype(np.uint8)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+
+    processed = clahe.apply(slice_img)
+
+    return processed
