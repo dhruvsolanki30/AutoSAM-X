@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>AutoSAM-X</title>
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+background:linear-gradient(135deg,#0b1c24,#132f3b,#1f4b5c);
+color:white;
+text-align:center;
+}
+
+/* NAVBAR */
+.navbar{
+width:100%;
+height:70px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:0 60px;
+background:rgba(0,0,0,0.25);
+backdrop-filter:blur(10px);
+border-bottom:1px solid rgba(255,255,255,0.1);
+position:sticky;
+top:0;
+z-index:1000;
+}
+
+.logo{
+font-size:22px;
+font-weight:600;
+color:#00e0ff;
+}
+
+.nav-links a{
+margin-left:25px;
+text-decoration:none;
+color:#c8f8ff;
+}
+
+/* HERO */
+.hero{margin-top:90px;}
+.hero-title{font-size:40px;color:#e8fdff;}
+.hero-subtitle{margin-top:15px;opacity:0.85;}
+
+/* ORGAN */
+.organ-title{margin-top:80px;font-size:30px;color:#d4f7ff;}
+.organ-subtitle{margin-top:10px;opacity:0.75;}
+
+/* CARDS */
+.container{
+margin-top:50px;
+display:grid;
+grid-template-columns:repeat(4,260px);
+gap:50px;
+justify-content:center;
+}
+
+.card{
+width:260px;height:260px;
+border-radius:20px;
+overflow:hidden;
+cursor:pointer;
+background:rgba(255,255,255,0.04);
+transition:0.4s;
+}
+
+.card img{
+width:100%;height:100%;object-fit:cover;
+}
+
+.card:hover{
+transform:scale(1.05);
+box-shadow:0 0 25px rgba(0,255,255,0.4);
+}
+
+/* MODAL */
+.modal{
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.7);
+backdrop-filter:blur(8px);
+justify-content:center;
+align-items:center;
+z-index:2000;
+}
+
+.modal-content{
+background:rgba(10,30,40,0.95);
+padding:30px;
+border-radius:20px;
+width:500px;
+position:relative;
+}
+
+.close{
+position:absolute;
+right:20px;
+top:15px;
+font-size:28px;
+cursor:pointer;
+}
+
+.modal-options{
+margin-top:20px;
+display:flex;
+flex-direction:column;
+gap:15px;
+}
+
+.option{
+padding:14px;
+border-radius:10px;
+background:rgba(255,255,255,0.05);
+cursor:pointer;
+transition:0.25s;
+color:#c8f8ff;
+}
+
+.option:hover{
+background:rgba(0,255,255,0.12);
+transform:translateX(6px);
+color:#00eaff;
+}
+
+/* FILE DISPLAY */
+#fileContainer{
+margin-top:15px;
+display:none;
+}
+
+#fileName{
+color:#00eaff;
+}
+
+/* REMOVE BUTTON */
+.remove-btn{
+margin-left:12px;
+padding:4px 10px;
+border-radius:6px;
+border:none;
+background:rgba(255,255,255,0.08);
+color:#c8f8ff;
+cursor:pointer;
+font-size:12px;
+transition:0.2s;
+}
+
+.remove-btn:hover{
+background:rgba(0,255,255,0.15);
+color:#00eaff;
+}
+
+/* TOAST */
+#toast{
+position:fixed;
+top:20px;
+right:20px;
+padding:12px 20px;
+background:#00eaff;
+color:#00323a;
+border-radius:8px;
+font-size:14px;
+display:none;
+z-index:3000;
+transition:opacity 0.3s;
+}
+
+/* FOOTER */
+.footer{
+margin-top:110px;
+opacity:0.65;
+}
+
+/* RESULT PAGE */
+#resultPage{
+display:none;
+min-height:100vh;
+padding:60px 20px;
+background:linear-gradient(135deg,#08151c,#0f2b36);
+}
+
+.result-box{
+max-width:1000px;
+margin:auto;
+background:rgba(255,255,255,0.05);
+border-radius:20px;
+padding:40px;
+}
+
+.metric{
+background:rgba(255,255,255,0.05);
+padding:20px;
+border-radius:12px;
+}
+
+@keyframes spin{
+0%{transform:rotate(0deg);}
+100%{transform:rotate(360deg);}
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+<div class="logo">AutoSAM-X</div>
+<div class="nav-links">
+<a href="#">Home</a>
+<a href="#">Modules</a>
+<a href="#">Research</a>
+<a href="#">Contact</a>
+</div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+<div class="hero-title">AI Powered Multi-Organ Medical Image Analysis</div>
+<div class="hero-subtitle">Automated detection of pathologies</div>
+</div>
+
+<!-- ORGAN -->
+<div class="organ-title">Select an Organ for Analysis</div>
+<div class="organ-subtitle">Choose a category</div>
+
+<div class="container">
+
+<div class="card" onclick="openModal('brain')">
+<img src="{{ url_for('static', filename='images/Brain_Pathology.png') }}">
+</div>
+
+<div class="card" onclick="openModal('liver')">
+<img src="{{ url_for('static', filename='images/Liver_Pathology.png') }}">
+</div>
+
+<div class="card" onclick="openModal('kidney')">
+<img src="{{ url_for('static', filename='images/Kidney_Pathology.png') }}">
+</div>
+
+<div class="card" onclick="openModal('lungs')">
+<img src="{{ url_for('static', filename='images/Lung_Pathology.png') }}">
+</div>
+
+</div>
+
+<!-- MODALS -->
+<div id="modal" class="modal">
+<div class="modal-content">
+<span class="close" onclick="closeModal()">&times;</span>
+<h2 id="modalTitle"></h2>
+<div id="modalOptions" class="modal-options"></div>
+</div>
+</div>
+
+<div id="uploadModal" class="modal">
+<div class="modal-content">
+
+<span class="close" onclick="closeUploadModal()">&times;</span>
+
+<h2 id="uploadModalTitle"></h2>
+
+<div onclick="triggerFileInput()" style="
+margin-top:20px;
+padding:35px;
+border-radius:15px;
+border:2px dashed rgba(0,255,255,0.3);
+cursor:pointer;
+background:rgba(255,255,255,0.04);
+">
+
+<div>Upload your MRI / CT Scan</div>
+<div style="opacity:0.7;">Click to browse</div>
+
+<input type="file" id="fileInput" hidden>
+
+</div>
+
+<div id="fileContainer">
+<span id="fileName"></span>
+<button class="remove-btn" onclick="removeFile()">Remove</button>
+</div>
+
+<button onclick="uploadImage()" style="
+margin-top:20px;
+padding:10px 25px;
+border:none;
+border-radius:8px;
+background:#00eaff;
+color:#00323a;
+cursor:pointer;
+">
+Analyze Scan
+</button>
+
+</div>
+</div>
+
+<!-- LOADER -->
+<div id="loaderPage" style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:linear-gradient(135deg,#08151c,#0f2b36);
+z-index:5000;
+justify-content:center;
+align-items:center;
+flex-direction:column;
+">
+
+<div style="
+width:70px;
+height:70px;
+border:6px solid rgba(0,255,255,0.2);
+border-top:6px solid #00eaff;
+border-radius:50%;
+animation:spin 1s linear infinite;
+margin-bottom:30px;
+"></div>
+
+<div id="loaderText" style="
+font-size:20px;
+color:#00eaff;
+"></div>
+
+</div>
+
+<!-- RESULT PAGE -->
+<div id="resultPage">
+<div class="result-box">
+
+<h1 style="color:#00eaff;margin-bottom:25px;">AI Analysis Result</h1>
+
+<div id="resultContent"></div>
+
+<button onclick="resetToHome()" style="
+margin-top:30px;
+padding:12px 30px;
+border:none;
+border-radius:10px;
+background:#00eaff;
+color:#00323a;
+cursor:pointer;
+font-size:16px;
+">
+Analyze Another Scan
+</button>
+
+</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- FOOTER -->
+<div class="footer">AutoSAM-X • AI Assisted Diagnosis</div>
+
+<script>
+
+/* TOAST */
+function showToast(message){
+let toast=document.getElementById("toast");
+toast.innerText=message;
+toast.style.display="block";
+toast.style.opacity="1";
+setTimeout(()=>{
+toast.style.opacity="0";
+setTimeout(()=>{toast.style.display="none";},300);
+},2000);
+}
+
+/* RESET */
+function resetUpload(){
+document.getElementById("fileInput").value="";
+document.getElementById("fileName").innerText="";
+document.getElementById("fileContainer").style.display="none";
+}
+
+/* MODALS */
+function openModal(organ){
+resetUpload();
+document.getElementById("modal").style.display="flex";
+
+let title="",options="";
+
+if(organ==="brain"){
+title="Brain Analysis";
+options=`<div class="option">Tumor Detection</div>
+<div class="option">Hemorrhage Detection</div>
+<div class="option">Stroke Detection</div>`;
+}
+
+if(organ==="liver"){
+title="Liver Analysis";
+options=`<div class="option">Tumor Detection</div>
+<div class="option">Cirrhosis Detection</div>`;
+}
+
+if(organ==="kidney"){
+title="Kidney Analysis";
+options=`<div class="option">Tumor Detection</div>
+<div class="option">Stone Detection</div>`;
+}
+
+if(organ==="lungs"){
+title="Lung Analysis";
+options=`<div class="option">Tumor Detection</div>
+<div class="option">Pneumonia Detection</div>
+<div class="option">Fibrosis Detection</div>`;
+}
+
+document.getElementById("modalTitle").innerText=title;
+document.getElementById("modalOptions").innerHTML=options;
+}
+
+function closeModal(){
+document.getElementById("modal").style.display="none";
+}
+
+document.addEventListener("click",function(e){
+if(e.target.classList.contains("option")){
+let text=e.target.innerText;
+closeModal();
+document.getElementById("uploadModal").style.display="flex";
+document.getElementById("uploadModalTitle").innerText="Upload Scan for "+text;
+}
+});
+
+function closeUploadModal(){
+document.getElementById("uploadModal").style.display="none";
+resetUpload();
+}
+
+/* FILE */
+function triggerFileInput(){
+document.getElementById("fileInput").click();
+}
+
+document.getElementById("fileInput").addEventListener("change",function(){
+let file=this.files[0];
+if(file){
+document.getElementById("fileName").innerText=file.name;
+document.getElementById("fileContainer").style.display="block";
+}
+});
+
+function removeFile(){
+resetUpload();
+showToast("File removed");
+}
+async function runLoaderSteps(){
+
+let steps = [
+"Loading MRI Scan...",
+"Preprocessing Image...",
+"Running YOLO Detection...",
+"Segmenting Tumor (SAM)...",
+"Refining Mask...",
+"Finalizing Results..."
+];
+
+let text = document.getElementById("loaderText");
+
+for(let i=0;i<steps.length;i++){
+text.innerText = steps[i];
+await new Promise(r => setTimeout(r, 3400));
+}
+}
+
+/* 🚀 MAIN RESULT LOGIC */
+async function uploadImage(){
+
+let file = document.getElementById("fileInput").files[0];
+
+if(!file){
+showToast("Please select a scan first");
+return;
+}
+
+/* 🔥 SHOW LOADER */
+let loader = document.getElementById("loaderPage");
+loader.style.display = "flex";
+loader.style.display = "flex"; // ensures override
+
+/* 🔥 START LOADER STEPS */
+runLoaderSteps();
+
+let formData = new FormData();
+formData.append("file", file);
+
+try{
+
+let response = await fetch("/predict", {
+method: "POST",
+body: formData
+});
+
+let data = await response.json();
+console.log("API DATA:", data);
+
+let image_url = data.image_url || "";
+
+/* 🔥 FIX PATH */
+if(image_url && !image_url.startsWith("/static/")){
+    image_url = "/static/outputs/" + image_url.split("/").pop();
+}
+
+data.image_url = image_url;
+
+data.image_url = image_url;
+
+/* 🔥 HIDE LOADER */
+document.getElementById("loaderPage").style.display = "none";
+
+/* CLOSE MODAL */
+closeUploadModal();
+
+/* HIDE HOME */
+document.querySelector(".hero").style.display="none";
+document.querySelector(".organ-title").style.display="none";
+document.querySelector(".organ-subtitle").style.display="none";
+document.querySelector(".container").style.display="none";
+
+/* SHOW RESULT */
+document.getElementById("resultPage").style.display="block";
+
+/* RESULT UI */
+let html = `
+<div style="text-align:center;">
+
+<div style="font-size:28px;color:#00eaff;margin-bottom:20px;">
+${data.detection || data.prediction || "Tumor Detection Result"}
+</div>
+
+${data.image_url ? `
+<img src="${data.image_url}" style="
+width:100%;
+max-height:450px;
+object-fit:contain;
+border-radius:15px;
+background:black;
+padding:10px;
+margin-bottom:30px;
+">
+` : ""}
+
+<div style="
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:25px;
+margin-top:30px;
+">
+
+<!-- CONFIDENCE -->
+<div style="
+padding:25px;
+border-radius:16px;
+background:linear-gradient(145deg,#0f2b36,#123c4a);
+box-shadow:0 8px 25px rgba(0,0,0,0.4);
+text-align:center;
+">
+<div style="font-size:13px;opacity:0.6;">Confidence Score</div>
+<div style="font-size:28px;color:#00eaff;margin-top:8px;">
+${data.confidence !== undefined ? data.confidence : "--"}
+</div>
+</div>
+
+<!-- TUMOR AREA -->
+<div style="
+padding:25px;
+border-radius:16px;
+background:linear-gradient(145deg,#0f2b36,#123c4a);
+box-shadow:0 8px 25px rgba(0,0,0,0.4);
+text-align:center;
+">
+<div style="font-size:13px;opacity:0.6;">Tumor Area</div>
+<div style="font-size:28px;color:#00eaff;margin-top:8px;">
+${data.tumor_area !== undefined ? data.tumor_area : "--"} px
+</div>
+</div>
+
+<!-- SEVERITY -->
+<div style="
+padding:25px;
+border-radius:16px;
+background:linear-gradient(145deg,#0f2b36,#123c4a);
+box-shadow:0 8px 25px rgba(0,0,0,0.4);
+text-align:center;
+">
+<div style="font-size:13px;opacity:0.6;">Severity Level</div>
+<div style="
+font-size:26px;
+margin-top:8px;
+color:${data.severity==="High"?"#ff4d4d":
+       data.severity==="Medium"?"#ffaa00":
+       "#00e676"};
+">
+${data.severity ? data.severity : "--"}
+</div>
+</div>
+
+</div>
+
+</div>
+`;
+
+document.getElementById("resultContent").innerHTML = html;
+
+}catch(err){
+console.log(err);
+
+/* ❌ HIDE LOADER EVEN IF ERROR */
+document.getElementById("loaderPage").style.display = "none";
+
+showToast("Error analyzing scan");
+}
+}
+/* RESET PAGE */
+function resetToHome(){
+document.getElementById("resultPage").style.display="none";
+
+document.querySelector(".hero").style.display="block";
+document.querySelector(".organ-title").style.display="block";
+document.querySelector(".organ-subtitle").style.display="block";
+document.querySelector(".container").style.display="grid";
+}
+
+</script>
+
+</body>
+</html>

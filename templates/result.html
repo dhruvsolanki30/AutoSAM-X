@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Analysis Result - AutoSAM-X</title>
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+background:linear-gradient(135deg,#0b1c24,#132f3b,#1f4b5c);
+color:white;
+text-align:center;
+}
+
+/* HEADER */
+
+.header{
+margin-top:60px;
+}
+
+.header h1{
+font-size:32px;
+color:#e8fdff;
+}
+
+.sub{
+margin-top:10px;
+opacity:0.7;
+}
+
+/* RESULT STATUS */
+
+.status{
+margin-top:30px;
+font-size:22px;
+font-weight:600;
+color:#00e0ff;
+}
+
+/* METRICS */
+
+.metrics{
+margin-top:15px;
+font-size:16px;
+opacity:0.85;
+}
+
+/* IMAGE CONTAINER */
+
+.container{
+margin-top:50px;
+
+display:flex;
+justify-content:center;
+gap:50px;
+flex-wrap:wrap;
+}
+
+/* IMAGE BOX */
+
+.image-box{
+background:rgba(255,255,255,0.05);
+padding:20px;
+border-radius:15px;
+
+border:1px solid rgba(255,255,255,0.1);
+backdrop-filter:blur(10px);
+}
+
+.image-box h3{
+margin-bottom:10px;
+}
+
+.image-box img{
+width:300px;
+border-radius:10px;
+}
+
+/* BUTTON */
+
+.btn{
+margin-top:50px;
+
+padding:12px 25px;
+
+background:#00e0ff;
+color:black;
+
+border:none;
+border-radius:10px;
+
+font-weight:bold;
+cursor:pointer;
+
+transition:0.3s;
+}
+
+.btn:hover{
+background:#00bcd4;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<h1>Analysis Result</h1>
+<div class="sub">AI-Based Tumor Detection Output</div>
+
+</div>
+
+
+<!-- RESULT STATUS -->
+
+<div class="status">
+{{ detection }}
+</div>
+
+<div class="metrics">
+Confidence: {{ confidence }} <br>
+Tumor Area: {{ tumor_area }} px <br>
+Severity: {{ severity }}
+</div>
+
+
+<!-- IMAGES -->
+
+<div class="container">
+
+<div class="image-box">
+<h3>Original Scan</h3>
+<img src="{{ input_image }}">
+</div>
+
+<div class="image-box">
+<h3>Processed Output</h3>
+<img src="{{ output_image }}">
+</div>
+
+</div>
+
+
+<!-- BACK BUTTON -->
+
+<a href="/brain">
+<button class="btn">Analyze Another Scan</button>
+</a>
+
+</body>
+</html>
