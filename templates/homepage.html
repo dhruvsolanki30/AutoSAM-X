@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AutoSAM-X Kidney Analysis</title>
+  </head>
+
+  <body>
+    <h2>Kidney Disease Detection System</h2>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      Upload CT Scan (.nii):
+
+      <br /><br />
+
+      <input type="file" name="file" required />
+
+      <br /><br />
+
+      <select name="option">
+        <option value="tumor">Kidney Tumor</option>
+        <option value="stone">Kidney Stones</option>
+        <option value="cyst">Kidney Cyst</option>
+        <option value="atrophy">Kidney Atrophy</option>
+        <option value="hydronephrosis">Hydronephrosis</option>
+      </select>
+
+      <br /><br />
+
+      <button type="submit">Run Analysis</button>
+    </form>
+
+    <hr />
+
+    {% if done %}
+
+    <h3>Output</h3>
+
+    <img src="{{ url_for('results_file', filename='input.png') }}" />
+    <img src="{{ url_for('results_file', filename='processed.png') }}" />
+    <img src="{{ url_for('results_file', filename='segmented.png') }}" />
+    <img src="{{ url_for('results_file', filename='overlay.png') }}" />
+
+    <pre id="result"></pre>
+
+    <script>
+      fetch("{{ url_for('results_file', filename='final_result.txt') }}")
+        .then((res) => res.text())
+        .then((data) => {
+          document.getElementById("result").innerText = data;
+        });
+    </script>
+
+    {% endif %}
+  </body>
+</html>
