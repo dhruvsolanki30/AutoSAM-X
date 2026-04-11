@@ -1,0 +1,23 @@
+# Model weights
+*.pth
+*.pt
+
+# Medical imaging data
+luna16/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
