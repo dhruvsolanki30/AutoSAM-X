@@ -175,28 +175,3 @@ def status():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
-
-
-@app.route("/upload",methods=["POST"])
-def upload():
-
-    file = request.files["file"]
-    option = request.form["option"]
-
-    path = os.path.join(UPLOAD_FOLDER,file.filename)
-
-    file.save(path)
-
-    run_pipeline(path,option)
-
-    return render_template("homepage.html",done=True)
-
-
-@app.route("/results/<path:filename>")
-def results_file(filename):
-    return send_from_directory("results",filename)
->>>>>>> origin/feature/kidney-module
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
