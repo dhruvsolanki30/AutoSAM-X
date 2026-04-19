@@ -375,7 +375,7 @@ Analyze Another Scan
 <div class="footer">AutoSAM-X • AI Assisted Diagnosis</div>
 
 <script>
-
+let selectedPathology = "";
 /* TOAST */
 function showToast(message){
 let toast=document.getElementById("toast");
@@ -438,7 +438,11 @@ document.getElementById("modal").style.display="none";
 
 document.addEventListener("click",function(e){
 if(e.target.classList.contains("option")){
-let text=e.target.innerText;
+let text = e.target.innerText;
+
+// ✅ STORE WHICH PATHOLOGY USER SELECTED
+selectedPathology = text.toLowerCase();
+
 closeModal();
 document.getElementById("uploadModal").style.display="flex";
 document.getElementById("uploadModalTitle").innerText="Upload Scan for "+text;
@@ -506,6 +510,7 @@ runLoaderSteps();
 
 let formData = new FormData();
 formData.append("file", file);
+formData.append("pathology", selectedPathology);
 
 try{
 

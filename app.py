@@ -3,6 +3,9 @@ import os
 
 from modules.brain.main import run_pipeline
 
+from modules.brain.hemorrhage import run_hemorrhage
+from modules.brain.stroke import run_stroke
+
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "static/uploads"
@@ -28,6 +31,7 @@ def predict():
 
     try:
         file = request.files.get("file")
+        pathology = request.form.get("pathology", "").lower()
 
         if not file or file.filename == "":
             return jsonify({"error": "No file uploaded"}), 400
@@ -35,16 +39,25 @@ def predict():
         filepath = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(filepath)
 
-        # 🔥 RUN PIPELINE
-        result = run_pipeline(filepath)
+        # 🔥 ROUTING BASED ON PATHOLOGY
+        if "tumor" in pathology:
+            result = run_pipeline(filepath)
 
-        # 🔥 RETURN JSON (MATCHING YOUR JS)
+        elif "hemorrhage" in pathology:
+            result = run_hemorrhage(filepath)
+
+        elif "stroke" in pathology:
+            result = run_stroke(filepath)
+
+        else:
+            return jsonify({"error": "Unsupported pathology"}), 400
+
         return jsonify({
             "detection": result.get("detection"),
             "confidence": result.get("confidence"),
-            "tumor_area": result.get("tumor_area"),
+            "tumor_area": result.get("tumor_area", 0),
             "severity": result.get("severity"),
-            "image_url": "/" + result.get("output_image")  # VERY IMPORTANT
+            "image_url": result.get("output_image")
         })
 
     except Exception as e:
