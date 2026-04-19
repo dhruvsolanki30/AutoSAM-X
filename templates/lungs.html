@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Lung Analysis - AutoSAM-X</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI;}
+body{background:linear-gradient(135deg,#0b1c24,#132f3b,#1f4b5c);color:white;text-align:center;}
+.navbar{width:100%;height:70px;display:flex;justify-content:space-between;align-items:center;padding:0 60px;background:rgba(0,0,0,0.25);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:1000;}
+.logo{font-size:22px;font-weight:600;color:#00e0ff;}
+.nav-links a{margin-left:25px;text-decoration:none;color:#c8f8ff;}
+.nav-links a:hover{color:#00e0ff;}
+.page-header{margin-top:60px;margin-bottom:40px;}
+.page-title{font-size:32px;color:#e8fdff;margin-bottom:10px;}
+.page-subtitle{opacity:0.75;}
+.pathology-grid{display:grid;grid-template-columns:repeat(3,300px);gap:30px;justify-content:center;margin-top:50px;}
+.pathology-card{padding:30px;border-radius:15px;background:rgba(255,255,255,0.05);cursor:pointer;transition:0.3s;border:2px solid rgba(0,255,255,0.2);}
+.pathology-card:hover{transform:translateY(-5px);background:rgba(255,255,255,0.08);border-color:rgba(0,255,255,0.6);box-shadow:0 10px 30px rgba(0,255,255,0.2);}
+.pathology-name{font-size:20px;color:#00eaff;margin-bottom:10px;}
+.pathology-desc{opacity:0.7;font-size:14px;}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);justify-content:center;align-items:center;z-index:2000;}
+.modal-content{background:rgba(10,30,40,0.95);padding:30px;border-radius:20px;width:500px;position:relative;}
+.close{position:absolute;right:20px;top:15px;font-size:28px;cursor:pointer;}
+#fileContainer{margin-top:15px;display:none;}
+#fileName{color:#00eaff;}
+.remove-btn{margin-left:12px;padding:4px 10px;border-radius:6px;border:none;background:rgba(255,255,255,0.08);color:#c8f8ff;cursor:pointer;font-size:12px;transition:0.2s;}
+.remove-btn:hover{background:rgba(0,255,255,0.15);color:#00eaff;}
+.upload-area{margin-top:20px;padding:35px;border-radius:15px;border:2px dashed rgba(0,255,255,0.3);cursor:pointer;background:rgba(255,255,255,0.04);}
+.analyze-btn{margin-top:20px;padding:10px 25px;border:none;border-radius:8px;background:#00eaff;color:#00323a;cursor:pointer;font-weight:600;}
+.analyze-btn:hover{background:#00d4cc;}
+#loaderPage{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#08151c,#0f2b36);z-index:5000;justify-content:center;align-items:center;flex-direction:column;}
+#resultPage{display:none;min-height:100vh;padding:60px 20px;background:linear-gradient(135deg,#08151c,#0f2b36);}
+.result-box{max-width:1000px;margin:auto;background:rgba(255,255,255,0.05);border-radius:20px;padding:40px;}
+@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+#toast{position:fixed;top:20px;right:20px;padding:12px 20px;background:#00eaff;color:#00323a;border-radius:8px;font-size:14px;display:none;z-index:3000;transition:opacity 0.3s;}
+.footer{margin-top:60px;opacity:0.65;}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+<div class="logo">AutoSAM-X</div>
+<div class="nav-links">
+<a href="/">Home</a>
+<a href="#">Research</a>
+<a href="#">Contact</a>
+</div>
+</div>
+
+<div class="page-header">
+<div class="page-title">Lung Analysis</div>
+<div class="page-subtitle">Detect lung nodules, pneumonia, and fibrosis</div>
+</div>
+
+<div class="pathology-grid">
+<div class="pathology-card" onclick="startAnalysis('Nodule Detection')">
+<div class="pathology-name">Nodule Detection</div>
+<div class="pathology-desc">Detect and analyze lung nodules</div>
+</div>
+
+<div class="pathology-card" onclick="startAnalysis('Pneumonia Detection')">
+<div class="pathology-name">Pneumonia Detection</div>
+<div class="pathology-desc">Detect pneumonia and consolidations</div>
+</div>
+
+<div class="pathology-card" onclick="startAnalysis('Fibrosis Detection')">
+<div class="pathology-name">Fibrosis Detection</div>
+<div class="pathology-desc">Detect pulmonary fibrosis patterns</div>
+</div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="uploadModal" class="modal">
+<div class="modal-content">
+<span class="close" onclick="closeModal()">&times;</span>
+<h2 id="modalTitle">Upload Lung Scan</h2>
+
+<div class="upload-area" onclick="triggerFileInput()">
+<div>Upload your CT Scan</div>
+<div style="opacity:0.7; font-size:14px;">Click to browse</div>
+<input type="file" id="fileInput" hidden>
+</div>
+
+<div id="fileContainer">
+<span id="fileName"></span>
+<button class="remove-btn" onclick="removeFile()">Remove</button>
+</div>
+
+<button class="analyze-btn" onclick="uploadImage()">Analyze Scan</button>
+</div>
+</div>
+
+<!-- LOADER -->
+<div id="loaderPage">
+<div style="width:70px;height:70px;border:6px solid rgba(0,255,255,0.2);border-top:6px solid #00eaff;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:30px;"></div>
+<div id="loaderText" style="font-size:20px;color:#00eaff;"></div>
+</div>
+
+<!-- RESULT PAGE -->
+<div id="resultPage">
+<div class="result-box">
+<h1 style="color:#00eaff;margin-bottom:25px;">Lung Analysis Result</h1>
+<div id="resultContent"></div>
+<button onclick="resetToHome()" style="margin-top:30px;padding:12px 30px;border:none;border-radius:10px;background:#00eaff;color:#00323a;cursor:pointer;font-size:16px;">Analyze Another Scan</button>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<div class="footer">AutoSAM-X • AI Assisted Lung Diagnosis</div>
+
+<script>
+let selectedPathology="";
+
+function showToast(msg){
+let toast=document.getElementById("toast");
+toast.innerText=msg;
+toast.style.display="block";
+toast.style.opacity="1";
+setTimeout(()=>{
+toast.style.opacity="0";
+setTimeout(()=>{toast.style.display="none";},300);
+},2000);
+}
+
+function startAnalysis(pathology){
+selectedPathology=pathology.toLowerCase();
+document.getElementById("uploadModal").style.display="flex";
+document.getElementById("modalTitle").innerText="Upload Scan for "+pathology;
+}
+
+function closeModal(){
+document.getElementById("uploadModal").style.display="none";
+resetUpload();
+}
+
+function triggerFileInput(){
+document.getElementById("fileInput").click();
+}
+
+document.getElementById("fileInput").addEventListener("change",function(){
+let file=this.files[0];
+if(file){
+document.getElementById("fileName").innerText=file.name;
+document.getElementById("fileContainer").style.display="block";
+}
+});
+
+function removeFile(){
+document.getElementById("fileInput").value="";
+document.getElementById("fileName").innerText="";
+document.getElementById("fileContainer").style.display="none";
+showToast("File removed");
+}
+
+function resetUpload(){
+document.getElementById("fileInput").value="";
+document.getElementById("fileName").innerText="";
+document.getElementById("fileContainer").style.display="none";
+}
+
+async function runLoaderSteps(){
+let steps=["Loading CT Scan...","Preprocessing Image...","Extracting Region...","Running SAM Segmentation...","Refining Results...","Generating Report..."];
+let text=document.getElementById("loaderText");
+for(let i=0;i<steps.length;i++){
+text.innerText=steps[i];
+await new Promise(r=>setTimeout(r,3400));
+}
+}
+
+async function uploadImage(){
+let file=document.getElementById("fileInput").files[0];
+if(!file){
+showToast("Please select a scan first");
+return;
+}
+
+let loader=document.getElementById("loaderPage");
+loader.style.display="flex";
+
+runLoaderSteps();
+
+let formData=new FormData();
+formData.append("file",file);
+formData.append("organ","lungs");
+formData.append("pathology",selectedPathology);
+
+try{
+let response=await fetch("/predict",{
+method:"POST",
+body:formData
+});
+
+let data=await response.json();
+console.log("API DATA:",data);
+
+let image_url=data.image_url||"";
+if(image_url && !image_url.startsWith("/static/")){
+image_url="/static/outputs/"+image_url.split("/").pop();
+}
+data.image_url=image_url;
+
+document.getElementById("loaderPage").style.display="none";
+closeModal();
+
+document.querySelector(".page-header").style.display="none";
+document.querySelector(".pathology-grid").style.display="none";
+
+document.getElementById("resultPage").style.display="block";
+
+let html=`
+<div style="text-align:center;">
+<div style="font-size:28px;color:#00eaff;margin-bottom:20px;">${data.detection||"Lung Analysis Result"}</div>
+${data.image_url?`<img src="${data.image_url}" style="width:100%;max-height:450px;object-fit:contain;border-radius:15px;background:black;padding:10px;margin-bottom:30px;">`:""}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:25px;margin-top:30px;">
+<div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
+<div style="font-size:13px;opacity:0.6;">Confidence</div>
+<div style="font-size:28px;color:#00eaff;margin-top:8px;">${data.confidence!==undefined?data.confidence:"--"}</div>
+</div>
+<div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
+<div style="font-size:13px;opacity:0.6;">Severity</div>
+<div style="font-size:28px;color:${data.severity==="High"?"#ff4d4d":data.severity==="Medium"?"#ffaa00":"#00e676"};margin-top:8px;">${data.severity||"--"}</div>
+</div>
+<div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
+<div style="font-size:13px;opacity:0.6;">Risk Level</div>
+<div style="font-size:24px;color:#00eaff;margin-top:8px;">${data.risk_level||"--"}</div>
+</div>
+</div>
+${data.findings?`<div style="margin-top:30px;text-align:left;background:rgba(255,255,255,0.04);padding:20px;border-radius:12px;"><div style="color:#00eaff;margin-bottom:10px;">Findings:</div><pre style="color:#c8f8ff;font-size:13px;white-space:pre-wrap;word-wrap:break-word;">${JSON.stringify(data.findings,null,2)}</pre></div>`:""}
+</div>
+`;
+
+document.getElementById("resultContent").innerHTML=html;
+
+}catch(err){
+console.log(err);
+document.getElementById("loaderPage").style.display="none";
+showToast("Error analyzing scan");
+}
+}
+
+function resetToHome(){
+document.getElementById("resultPage").style.display="none";
+document.querySelector(".page-header").style.display="block";
+document.querySelector(".pathology-grid").style.display="grid";
+}
+</script>
+
+</body>
+</html>
