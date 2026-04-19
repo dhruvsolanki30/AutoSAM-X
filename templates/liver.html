@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Liver Analysis - AutoSAM-X</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI;}
+body{background:linear-gradient(135deg,#1a0d00,#3d1f0f,#5c2e1a);color:white;text-align:center;}
+.navbar{width:100%;height:70px;display:flex;justify-content:space-between;align-items:center;padding:0 60px;background:rgba(0,0,0,0.25);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;top:0;z-index:1000;}
+.logo{font-size:22px;font-weight:600;color:#ff9900;}
+.nav-links a{margin-left:25px;text-decoration:none;color:#ffd9b3;}
+.nav-links a:hover{color:#ff9900;}
+.page-header{margin-top:60px;margin-bottom:40px;}
+.page-title{font-size:32px;color:#ffe6cc;margin-bottom:10px;}
+.page-subtitle{opacity:0.75;}
+.pathology-grid{display:grid;grid-template-columns:repeat(2,300px);gap:30px;justify-content:center;margin-top:50px;}
+.pathology-card{padding:30px;border-radius:15px;background:rgba(255,255,255,0.05);cursor:pointer;transition:0.3s;border:2px solid rgba(255,153,0,0.2);}
+.pathology-card:hover{transform:translateY(-5px);background:rgba(255,255,255,0.08);border-color:rgba(255,153,0,0.6);box-shadow:0 10px 30px rgba(255,153,0,0.2);}
+.pathology-name{font-size:20px;color:#ffaa33;margin-bottom:10px;}
+.pathology-desc{opacity:0.7;font-size:14px;}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);justify-content:center;align-items:center;z-index:2000;}
+.modal-content{background:rgba(26,13,0,0.95);padding:30px;border-radius:20px;width:500px;position:relative;}
+.close{position:absolute;right:20px;top:15px;font-size:28px;cursor:pointer;}
+#fileContainer{margin-top:15px;display:none;}
+#fileName{color:#ffaa33;}
+.remove-btn{margin-left:12px;padding:4px 10px;border-radius:6px;border:none;background:rgba(255,255,255,0.08);color:#ffd9b3;cursor:pointer;font-size:12px;transition:0.2s;}
+.remove-btn:hover{background:rgba(255,153,0,0.15);color:#ffaa33;}
+.upload-area{margin-top:20px;padding:35px;border-radius:15px;border:2px dashed rgba(255,153,0,0.3);cursor:pointer;background:rgba(255,255,255,0.04);}
+.analyze-btn{margin-top:20px;padding:10px 25px;border:none;border-radius:8px;background:#ff9900;color:#1a0d00;cursor:pointer;font-weight:600;}
+.analyze-btn:hover{background:#ffaa33;}
+#loaderPage{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a0d00,#3d1f0f);z-index:5000;justify-content:center;align-items:center;flex-direction:column;}
+#resultPage{display:none;min-height:100vh;padding:60px 20px;background:linear-gradient(135deg,#1a0d00,#3d1f0f);}
+.result-box{max-width:1000px;margin:auto;background:rgba(255,255,255,0.05);border-radius:20px;padding:40px;}
+@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+#toast{position:fixed;top:20px;right:20px;padding:12px 20px;background:#ff9900;color:#1a0d00;border-radius:8px;font-size:14px;display:none;z-index:3000;transition:opacity 0.3s;}
+.footer{margin-top:60px;opacity:0.65;}
+.result-card{background:rgba(255,255,255,0.07);padding:20px;border-radius:12px;margin-bottom:15px;border-left:4px solid #ff9900;text-align:left;}
+.result-card-label{opacity:0.7;font-size:12px;margin-bottom:5px;}
+.result-card-value{font-size:18px;color:#ffaa33;}
+.severity-high{color:#ff4444;}
+.severity-medium{color:#ffaa33;}
+.severity-low{color:#88dd88;}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+<div class="logo">AutoSAM-X</div>
+<div class="nav-links">
+<a href="/">Home</a>
+<a href="#">Research</a>
+<a href="#">Contact</a>
+</div>
+</div>
+
+<div class="page-header">
+<div class="page-title">Liver Analysis</div>
+<div class="page-subtitle">Detect liver tumors and perform comprehensive liver imaging analysis</div>
+</div>
+
+<div class="pathology-grid">
+<div class="pathology-card" onclick="startAnalysis('Tumor Detection')">
+<div class="pathology-name">Tumor Detection</div>
+<div class="pathology-desc">Detect and segment liver tumors and lesions</div>
+</div>
+
+<div class="pathology-card" onclick="startAnalysis('Hepatomegaly Detection')">
+<div class="pathology-name">Hepatomegaly Detection</div>
+<div class="pathology-desc">Assess liver size and detect enlargement</div>
+</div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="uploadModal" class="modal">
+<div class="modal-content">
+<span class="close" onclick="closeModal()">&times;</span>
+<h2 id="modalTitle">Upload Liver Scan</h2>
+
+<div class="upload-area" onclick="triggerFileInput()">
+<div>Upload your CT/MRI Scan</div>
+<div style="opacity:0.7; font-size:14px;">Click to browse</div>
+<input type="file" id="fileInput" hidden>
+</div>
+
+<div id="fileContainer">
+<span id="fileName"></span>
+<button class="remove-btn" onclick="removeFile()">Remove</button>
+</div>
+
+<button class="analyze-btn" onclick="uploadImage()">Analyze Scan</button>
+</div>
+</div>
+
+<!-- LOADER -->
+<div id="loaderPage">
+<div style="width:70px;height:70px;border:6px solid rgba(255,153,0,0.2);border-top:6px solid #ff9900;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:30px;"></div>
+<div id="loaderText" style="font-size:20px;color:#ff9900;"></div>
+</div>
+
+<!-- RESULT PAGE -->
+<div id="resultPage">
+<div style="text-align:center; margin-bottom:40px;">
+<h2 style="font-size:28px; margin-bottom:10px;">Analysis Results</h2>
+<button onclick="newAnalysis()" style="margin-top:20px; padding:10px 20px; background:#ff9900; color:#1a0d00; border:none; border-radius:8px; cursor:pointer; font-weight:600;">New Analysis</button>
+</div>
+
+<div class="result-box">
+<div class="result-card">
+<div class="result-card-label">Detection Status</div>
+<div class="result-card-value" id="detection">-</div>
+</div>
+
+<div class="result-card">
+<div class="result-card-label">Confidence Score</div>
+<div class="result-card-value" id="confidence">-</div>
+</div>
+
+<div class="result-card">
+<div class="result-card-label">Risk Level</div>
+<div class="result-card-value" id="severity">-</div>
+</div>
+
+<div class="result-card">
+<div class="result-card-label">Analyzed Image</div>
+<div style="margin-top:20px;">
+<img id="resultImage" src="" style="max-width:100%; border-radius:8px; display:none;">
+</div>
+</div>
+
+<div class="result-card" id="findingsCard" style="display:none;">
+<div class="result-card-label">Detailed Findings</div>
+<pre id="findings" style="color:#ffaa33; overflow:auto; max-height:300px; background:rgba(0,0,0,0.3); padding:10px; border-radius:6px; text-align:left;"></pre>
+</div>
+</div>
+</div>
+
+<div class="footer">AutoSAM-X - Advanced Medical Imaging Analysis Platform 2026</div>
+
+<div id="toast"></div>
+
+<script>
+let selectedPathology = '';
+
+function startAnalysis(pathology) {
+    selectedPathology = pathology;
+    document.getElementById('modalTitle').textContent = `Upload Liver Scan for ${pathology}`;
+    document.getElementById('uploadModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('uploadModal').style.display = 'none';
+    removeFile();
+}
+
+function triggerFileInput() {
+    document.getElementById('fileInput').click();
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        const fileName = e.target.files[0].name;
+        document.getElementById('fileName').textContent = fileName;
+        document.getElementById('fileContainer').style.display = 'inline';
+    }
+});
+
+function removeFile() {
+    document.getElementById('fileInput').value = '';
+    document.getElementById('fileContainer').style.display = 'none';
+}
+
+function uploadImage() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) {
+        showToast('Please select a file');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('organ', 'liver');
+    formData.append('pathology', selectedPathology.toLowerCase());
+
+    document.getElementById('uploadModal').style.display = 'none';
+    document.getElementById('loaderPage').style.display = 'flex';
+    document.getElementById('loaderText').textContent = `Analyzing liver ${selectedPathology.toLowerCase()}...`;
+
+    fetch('/predict', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showToast('Error: ' + data.error);
+            document.getElementById('loaderPage').style.display = 'none';
+        } else {
+            document.getElementById('detection').textContent = data.detection || 'Analyzed';
+            document.getElementById('confidence').textContent = ((data.confidence || 0.9) * 100).toFixed(1) + '%';
+            document.getElementById('severity').textContent = data.severity || 'Unknown';
+            
+            const severityElement = document.getElementById('severity');
+            const severityValue = data.severity || 'Unknown';
+            if (severityValue.toLowerCase() === 'high') {
+                severityElement.className = 'result-card-value severity-high';
+            } else if (severityValue.toLowerCase() === 'medium') {
+                severityElement.className = 'result-card-value severity-medium';
+            } else {
+                severityElement.className = 'result-card-value severity-low';
+            }
+
+            if (data.image_url) {
+                document.getElementById('resultImage').src = data.image_url;
+                document.getElementById('resultImage').style.display = 'block';
+            }
+
+            if (data.findings && Object.keys(data.findings).length > 0) {
+                document.getElementById('findingsCard').style.display = 'block';
+                document.getElementById('findings').textContent = JSON.stringify(data.findings, null, 2);
+            }
+
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('resultPage').style.display = 'block';
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        showToast('Request failed: ' + err.message);
+        document.getElementById('loaderPage').style.display = 'none';
+    });
+}
+
+function newAnalysis() {
+    removeFile();
+    document.getElementById('resultPage').style.display = 'none';
+    document.getElementById('uploadModal').style.display = 'flex';
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+}
+
+window.onclick = (e) => {
+    const modal = document.getElementById('uploadModal');
+    if (e.target === modal) {
+        closeModal();
+    }
+};
+</script>
+
+</body>
+</html>

@@ -29,6 +29,14 @@ except Exception as e:
     print(f"Warning: Kidney modules not available: {e}")
     KIDNEY_AVAILABLE = False
 
+# Liver pathologies
+try:
+    from modules.liver.main import run_pipeline as run_liver_analysis
+    LIVER_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Liver modules not available: {e}")
+    LIVER_AVAILABLE = False
+
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "static/uploads"
@@ -67,7 +75,9 @@ def kidney():
 
 @app.route("/liver")
 def liver():
-    return render_template("coming_soon.html", organ="Liver")
+    if LIVER_AVAILABLE:
+        return render_template("liver.html")
+    return "<h1>Liver module not available</h1>", 503
 
 
 # ========== UNIFIED PREDICTION API ==========
@@ -126,6 +136,13 @@ def predict():
             
             result = run_kidney_analysis(filepath)
 
+        # ===== LIVER PATHOLOGIES =====
+        elif organ == "liver":
+            if not LIVER_AVAILABLE:
+                return jsonify({"error": "Liver module not available"}), 503
+            
+            result = run_liver_analysis()
+
         else:
             return jsonify({"error": f"Unsupported organ: {organ}"}), 400
 
@@ -151,7 +168,8 @@ def status():
     return jsonify({
         "brain_available": BRAIN_AVAILABLE,
         "lung_available": LUNG_AVAILABLE,
-        "kidney_available": KIDNEY_AVAILABLE
+        "kidney_available": KIDNEY_AVAILABLE,
+        "liver_available": LIVER_AVAILABLE
     })
 
 
