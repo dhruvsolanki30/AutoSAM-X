@@ -1,12 +1,33 @@
-venv/
+# Model weights
+*.pth
+*.pt
+
+# Medical imaging data
+luna16/
+data/brain/images/
+data/
+
+# Python cache
 __pycache__/
+*.pyc
+*.pyo
+*.cache
+
+# Environment
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
 *.nii
 *.nii.gz
-data/brain/images/
 tempCodeRunnerFile.py
 runs/
-data/
 models/
-*.pt
-*.pth
-*.cache
