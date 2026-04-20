@@ -420,7 +420,10 @@ options=`<div class="option">Tumor Detection</div>
 if(organ==="kidney"){
 title="Kidney Analysis";
 options=`<div class="option">Tumor Detection</div>
-<div class="option">Stone Detection</div>`;
+<div class="option">Stone Detection</div>
+<div class="option">Cyst Detection</div>
+<div class="option">Atrophy Detection</div>
+<div class="option">Hydronephrosis Detection</div>`;
 }
 
 if(organ==="lungs"){
@@ -457,6 +460,10 @@ if(selectedOrgan === "lungs"){
   fileInput.setAttribute("multiple", "");
   uploadLabel.innerText = "Upload your CT Scan";
   uploadHint.innerText = "Select .mhd + .raw files together, or JPG/PNG";
+} else if(selectedOrgan === "kidney" || selectedOrgan === "liver"){
+  fileInput.removeAttribute("multiple");
+  uploadLabel.innerText = "Upload your CT Scan";
+  uploadHint.innerText = "Supports .nii, .nii.gz, JPG, PNG";
 } else {
   fileInput.removeAttribute("multiple");
   uploadLabel.innerText = "Upload your MRI / CT Scan";
@@ -498,6 +505,15 @@ steps = [
 "Running SAM Segmentation...",
 "Refining Mask...",
 "Computing Metrics...",
+"Generating Report..."
+];
+} else if(selectedOrgan === "kidney"){
+steps = [
+"Loading CT Volume...",
+"Preprocessing Slices...",
+"Detecting Kidney Region...",
+"Segmenting with SAM...",
+"Classifying Pathology...",
 "Generating Report..."
 ];
 } else {

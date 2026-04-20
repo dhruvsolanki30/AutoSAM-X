@@ -158,6 +158,243 @@ def liver():
 
 # ========== LUNG PIPELINE HELPER ==========
 
+# ========== KIDNEY PIPELINE HELPER ==========
+def _run_kidney_pipeline(filepath, pathology):
+    """Run kidney analysis using intensity-based detection + shared SAM and 3-panel output."""
+    from kidney.preprocess import preprocess_slice
+    from shared.segmentation import segment_with_bbox
+    from shared.mask_utils import refine_mask, compute_mask_metrics
+    import nibabel as nib
+
+    # Map pathology string to option key
+    option = "tumor"
+    if "stone" in pathology:
+        option = "stone"
+    elif "cyst" in pathology:
+        option = "cyst"
+    elif "atrophy" in pathology:
+        option = "atrophy"
+    elif "hydronephrosis" in pathology:
+        option = "hydronephrosis"
+
+    is_nifti = filepath.endswith((".nii", ".nii.gz"))
+
+    # ---- Load and pick best slice ----
+    if is_nifti:
+        nii = nib.load(filepath)
+        volume = nii.dataobj  # memory-mapped, avoids loading entire volume
+        depth = volume.shape[2]
+        start = int(depth * 0.3)
+        end = int(depth * 0.7)
+
+        # Sample only 5 slices for speed
+        sample_indices = np.linspace(start, end - 1, 5, dtype=int)
+        best_idx = sample_indices[0]
+        best_std = 0
+        for i in sample_indices:
+            s = np.asarray(volume[:, :, i], dtype=np.float32).std()
+            if s > best_std:
+                best_std = s
+                best_idx = i
+
+        sl = np.asarray(volume[:, :, best_idx], dtype=np.float32)
+        processed = preprocess_slice(sl)
+    else:
+        img = cv2.imread(filepath, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise ValueError("Could not load image")
+        processed = preprocess_slice(img.astype(np.float32))
+
+    # ---- Detection: pathology-specific strategy ----
+    h, w = processed.shape
+    resized = cv2.resize(processed, (512, 512))
+    rgb_img = cv2.cvtColor(resized, cv2.COLOR_GRAY2RGB)
+    blurred = cv2.GaussianBlur(resized, (15, 15), 0)
+    mean_val = np.mean(blurred)
+    std_val = np.std(blurred)
+
+    if option == "stone":
+        # Stones are bright calcifications — high intensity threshold
+        thresh_val = int(min(mean_val + 2.0 * std_val, 250))
+        _, roi_mask = cv2.threshold(blurred, thresh_val, 255, cv2.THRESH_BINARY)
+    elif option == "cyst":
+        # Cysts are dark fluid-filled — low intensity
+        thresh_val = int(max(mean_val - 1.2 * std_val, 10))
+        _, roi_mask = cv2.threshold(blurred, thresh_val, 255, cv2.THRESH_BINARY_INV)
+    elif option == "hydronephrosis":
+        # Dilated collecting system — dark regions, wider range
+        thresh_val = int(max(mean_val - 0.8 * std_val, 15))
+        _, roi_mask = cv2.threshold(blurred, thresh_val, 255, cv2.THRESH_BINARY_INV)
+        # Morphological close to merge nearby dark regions
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+        roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_CLOSE, kernel)
+    elif option == "atrophy":
+        # Atrophy: organ-level detection — use moderate threshold for whole kidney
+        thresh_val = int(min(mean_val + 0.5 * std_val, 200))
+        _, roi_mask = cv2.threshold(blurred, thresh_val, 255, cv2.THRESH_BINARY)
+    else:
+        # Tumor: abnormal dense mass within kidney
+        thresh_val = int(min(mean_val + 1.2 * std_val, 240))
+        _, roi_mask = cv2.threshold(blurred, thresh_val, 255, cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        best_c = max(contours, key=cv2.contourArea)
+        rx, ry, rw, rh = cv2.boundingRect(best_c)
+        pad = 20
+        bbox_512 = [max(0, rx - pad), max(0, ry - pad),
+                    min(511, rx + rw + pad), min(511, ry + rh + pad)]
+    else:
+        bbox_512 = [100, 100, 412, 412]
+
+    display_box = bbox_512
+
+    # ---- SAM segmentation using shared model ----
+    mask = segment_with_bbox(rgb_img, bbox_512)
+    refined = refine_mask(mask)
+    metrics = compute_mask_metrics(refined)
+
+    # ---- Pathology-specific disease mask (instead of generic classify) ----
+    kidney_region = refined  # SAM-segmented kidney
+
+    if option == "tumor":
+        # Dense regions inside the kidney
+        tumor_thresh = int(min(mean_val + 1.5 * std_val, 245))
+        _, bright = cv2.threshold(resized, tumor_thresh, 255, cv2.THRESH_BINARY)
+        disease_mask = cv2.bitwise_and(bright, bright, mask=kidney_region)
+        area = int(np.sum(disease_mask > 0))
+        detection = "Tumor Detected" if area > 500 else "Healthy"
+        result = {"Diagnosis": detection, "Tumor_Size": area}
+
+    elif option == "stone":
+        # Very bright spots (calcifications)
+        stone_thresh = int(min(mean_val + 2.5 * std_val, 252))
+        _, bright = cv2.threshold(resized, stone_thresh, 255, cv2.THRESH_BINARY)
+        disease_mask = cv2.bitwise_and(bright, bright, mask=kidney_region)
+        # Count distinct stone contours
+        stone_contours, _ = cv2.findContours(disease_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        stone_count = len([c for c in stone_contours if cv2.contourArea(c) > 5])
+        area = int(np.sum(disease_mask > 0))
+        detection = f"Kidney Stones Detected ({stone_count} stones)" if stone_count > 0 else "No Kidney Stones"
+        result = {"Diagnosis": detection, "Stone_Count": stone_count}
+
+    elif option == "cyst":
+        # Dark fluid-filled pockets inside kidney
+        cyst_thresh = int(max(mean_val - 1.0 * std_val, 10))
+        _, dark = cv2.threshold(resized, cyst_thresh, 255, cv2.THRESH_BINARY_INV)
+        disease_mask = cv2.bitwise_and(dark, dark, mask=kidney_region)
+        # Clean up noise
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        disease_mask = cv2.morphologyEx(disease_mask, cv2.MORPH_OPEN, kernel)
+        area = int(np.sum(disease_mask > 0))
+        detection = "Kidney Cyst Detected" if area > 300 else "No Cyst Detected"
+        result = {"Diagnosis": detection, "Cyst_Area": area}
+
+    elif option == "atrophy":
+        # Atrophy = small kidney — measure organ area from SAM
+        disease_mask = kidney_region.copy()
+        kidney_area = int(np.sum(kidney_region > 0))
+        detection = "Kidney Atrophy Detected" if kidney_area < 8000 else "Normal Kidney Size"
+        result = {"Diagnosis": detection, "Kidney_Area": kidney_area}
+        area = kidney_area
+
+    elif option == "hydronephrosis":
+        # Dilated dark regions (fluid in collecting system)
+        hydro_thresh = int(max(mean_val - 0.6 * std_val, 20))
+        _, dark = cv2.threshold(resized, hydro_thresh, 255, cv2.THRESH_BINARY_INV)
+        disease_mask = cv2.bitwise_and(dark, dark, mask=kidney_region)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+        disease_mask = cv2.morphologyEx(disease_mask, cv2.MORPH_CLOSE, kernel)
+        area = int(np.sum(disease_mask > 0))
+        # Ratio of dark area to kidney area
+        kidney_area = max(int(np.sum(kidney_region > 0)), 1)
+        ratio = area / kidney_area
+        detection = "Hydronephrosis Detected" if ratio > 0.15 else "Normal"
+        result = {"Diagnosis": detection, "Fluid_Area": area, "Fluid_Ratio": f"{ratio:.1%}"}
+    else:
+        disease_mask = np.zeros_like(resized)
+        area = 0
+        detection = "Unknown Pathology"
+        result = {"Diagnosis": detection}
+
+    tumor_area = int(np.sum(disease_mask > 0))
+    detection = result.get("Diagnosis", "Analysis Complete")
+    is_healthy = "Healthy" in detection or "Normal" in detection
+
+    confidence = 0.85 if not is_healthy else 0.50
+    if tumor_area > 3000: severity = "High"
+    elif tumor_area > 1000: severity = "Medium"
+    elif tumor_area > 100: severity = "Low"
+    else: severity = "Normal"
+
+    findings = {
+        "Diagnosis": detection,
+        "Severity": severity,
+    }
+    for k, v in result.items():
+        if k != "Diagnosis":
+            findings[k] = str(v)
+
+    print(f"[KIDNEY] {option}: {detection}, Area: {tumor_area}, Severity: {severity}")
+
+    # ---- 3-panel image ----
+    output_filename = f"kidney_{option}_{int(time.time())}.png"
+    save_path = os.path.join(OUTPUT_FOLDER, output_filename)
+
+    # Build disease overlay (same style as kidney/visualize.py)
+    disease_colors = {
+        "tumor": (0, 0, 255),
+        "stone": (255, 255, 0),
+        "cyst": (0, 255, 0),
+        "atrophy": (255, 0, 0),
+        "hydronephrosis": (0, 255, 255),
+    }
+    color = disease_colors.get(option, (0, 0, 255))
+    overlay = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
+    dm = disease_mask if disease_mask.shape == (512, 512) else cv2.resize(disease_mask.astype(np.uint8), (512, 512), interpolation=cv2.INTER_NEAREST)
+    overlay[dm > 0] = color
+    # Convert BGR to RGB for matplotlib
+    overlay_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+
+    fig = plt.figure(figsize=(12, 4))
+
+    plt.subplot(1, 3, 1)
+    plt.title("Original", color="white")
+    plt.imshow(resized, cmap="gray")
+    plt.axis("off")
+
+    plt.subplot(1, 3, 2)
+    plt.title("Detection", color="white")
+    plt.imshow(resized, cmap="gray")
+    if display_box is not None:
+        x1, y1, x2, y2 = display_box
+        plt.gca().add_patch(
+            plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
+                           edgecolor="red", linewidth=2, fill=False)
+        )
+    plt.axis("off")
+
+    plt.subplot(1, 3, 3)
+    plt.title("Segmentation", color="white")
+    plt.imshow(overlay_rgb)
+    plt.axis("off")
+
+    plt.tight_layout()
+    fig.patch.set_facecolor("black")
+    plt.savefig(save_path, bbox_inches="tight", facecolor="black")
+    plt.close(fig)
+
+    return {
+        "detection": detection,
+        "confidence": round(float(confidence), 2),
+        "severity": severity,
+        "tumor_area": tumor_area,
+        "image_url": f"/static/outputs/{output_filename}",
+        "findings": findings,
+    }
+
+
 # ========== LIVER PIPELINE HELPER ==========
 def _run_liver_pipeline(filepath, pathology):
     """Run liver analysis using YOLO + SAM (with intensity fallback) and 3-panel output."""
@@ -502,21 +739,11 @@ def predict():
 
         # ===== KIDNEY PATHOLOGIES =====
         elif organ == "kidney":
-            if KIDNEY_AVAILABLE:
-                try:
-                    option = "tumor"
-                    if "stone" in pathology:
-                        option = "stone"
-                    elif "cyst" in pathology:
-                        option = "cyst"
-                    elif "atrophy" in pathology:
-                        option = "atrophy"
-                    elif "hydronephrosis" in pathology:
-                        option = "hydronephrosis"
-                    result = run_kidney_analysis(filepath, option)
-                except Exception as e:
-                    print(f"Kidney pipeline error: {e}")
-                    traceback.print_exc()
+            try:
+                result = _run_kidney_pipeline(filepath, pathology)
+            except Exception as e:
+                print(f"Kidney pipeline error: {e}")
+                traceback.print_exc()
 
         # ===== LIVER PATHOLOGIES =====
         elif organ == "liver":
