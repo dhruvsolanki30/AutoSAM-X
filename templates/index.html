@@ -285,8 +285,8 @@ cursor:pointer;
 background:rgba(255,255,255,0.04);
 ">
 
-<div>Upload your MRI / CT Scan</div>
-<div style="opacity:0.7;">Click to browse</div>
+<div id="uploadLabel">Upload your MRI / CT Scan</div>
+<div id="uploadHint" style="opacity:0.7;">Click to browse</div>
 
 <input type="file" id="fileInput" hidden>
 
@@ -376,6 +376,7 @@ Analyze Another Scan
 
 <script>
 let selectedPathology = "";
+let selectedOrgan = "";
 /* TOAST */
 function showToast(message){
 let toast=document.getElementById("toast");
@@ -397,6 +398,7 @@ document.getElementById("fileContainer").style.display="none";
 
 /* MODALS */
 function openModal(organ){
+selectedOrgan = organ;
 resetUpload();
 document.getElementById("modal").style.display="flex";
 
@@ -423,7 +425,7 @@ options=`<div class="option">Tumor Detection</div>
 
 if(organ==="lungs"){
 title="Lung Analysis";
-options=`<div class="option">Tumor Detection</div>
+options=`<div class="option">Nodule Detection</div>
 <div class="option">Pneumonia Detection</div>
 <div class="option">Fibrosis Detection</div>`;
 }
@@ -446,6 +448,20 @@ selectedPathology = text.toLowerCase();
 closeModal();
 document.getElementById("uploadModal").style.display="flex";
 document.getElementById("uploadModalTitle").innerText="Upload Scan for "+text;
+
+// Adjust upload UI based on organ
+let fileInput = document.getElementById("fileInput");
+let uploadLabel = document.getElementById("uploadLabel");
+let uploadHint = document.getElementById("uploadHint");
+if(selectedOrgan === "lungs"){
+  fileInput.setAttribute("multiple", "");
+  uploadLabel.innerText = "Upload your CT Scan";
+  uploadHint.innerText = "Select .mhd + .raw files together, or JPG/PNG";
+} else {
+  fileInput.removeAttribute("multiple");
+  uploadLabel.innerText = "Upload your MRI / CT Scan";
+  uploadHint.innerText = "Click to browse";
+}
 }
 });
 
@@ -460,9 +476,10 @@ document.getElementById("fileInput").click();
 }
 
 document.getElementById("fileInput").addEventListener("change",function(){
-let file=this.files[0];
-if(file){
-document.getElementById("fileName").innerText=file.name;
+let files=this.files;
+if(files.length>0){
+let names=Array.from(files).map(f=>f.name).join(", ");
+document.getElementById("fileName").innerText=names;
 document.getElementById("fileContainer").style.display="block";
 }
 });
@@ -473,14 +490,26 @@ showToast("File removed");
 }
 async function runLoaderSteps(){
 
-let steps = [
+let steps;
+if(selectedOrgan === "lungs"){
+steps = [
+"Loading CT Volume...",
+"Extracting Region of Interest...",
+"Running SAM Segmentation...",
+"Refining Mask...",
+"Computing Metrics...",
+"Generating Report..."
+];
+} else {
+steps = [
 "Loading MRI Scan...",
 "Preprocessing Image...",
 "Running YOLO Detection...",
-"Segmenting Tumor (SAM)...",
+"Segmenting with SAM...",
 "Refining Mask...",
 "Finalizing Results..."
 ];
+}
 
 let text = document.getElementById("loaderText");
 
@@ -493,9 +522,9 @@ await new Promise(r => setTimeout(r, 3400));
 /* 🚀 MAIN RESULT LOGIC */
 async function uploadImage(){
 
-let file = document.getElementById("fileInput").files[0];
+let files = document.getElementById("fileInput").files;
 
-if(!file){
+if(!files || files.length===0){
 showToast("Please select a scan first");
 return;
 }
@@ -503,13 +532,15 @@ return;
 /* 🔥 SHOW LOADER */
 let loader = document.getElementById("loaderPage");
 loader.style.display = "flex";
-loader.style.display = "flex"; // ensures override
 
 /* 🔥 START LOADER STEPS */
 runLoaderSteps();
 
 let formData = new FormData();
-formData.append("file", file);
+for(let i=0;i<files.length;i++){
+formData.append("file", files[i]);
+}
+formData.append("organ", selectedOrgan);
 formData.append("pathology", selectedPathology);
 
 try{
@@ -521,6 +552,12 @@ body: formData
 
 let data = await response.json();
 console.log("API DATA:", data);
+
+if(data.error){
+document.getElementById("loaderPage").style.display="none";
+showToast("Error: "+data.error);
+return;
+}
 
 let image_url = data.image_url || "";
 
@@ -553,7 +590,7 @@ let html = `
 <div style="text-align:center;">
 
 <div style="font-size:28px;color:#00eaff;margin-bottom:20px;">
-${data.detection || data.prediction || "Tumor Detection Result"}
+${data.detection || data.prediction || "Analysis Result"}
 </div>
 
 ${data.image_url ? `
@@ -615,13 +652,30 @@ text-align:center;
 <div style="
 font-size:26px;
 margin-top:8px;
-color:${data.severity==="High"?"#ff4d4d":
-       data.severity==="Medium"?"#ffaa00":
+color:${data.severity==="High"||data.severity==="HIGH"?"#ff4d4d":
+       data.severity==="Medium"||data.severity==="MEDIUM"?"#ffaa00":
        "#00e676"};
 ">
 ${data.severity ? data.severity : "--"}
 </div>
 </div>
+
+<!-- FINDINGS -->
+${data.findings && Object.keys(data.findings).length > 0 ? `
+<div style="
+padding:25px;
+border-radius:16px;
+background:linear-gradient(145deg,#0f2b36,#123c4a);
+box-shadow:0 8px 25px rgba(0,0,0,0.4);
+text-align:left;
+grid-column:1/-1;
+">
+<div style="font-size:13px;opacity:0.6;margin-bottom:12px;">Detailed Findings</div>
+${Object.entries(data.findings).map(([k,v])=>
+'<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="opacity:0.6;">'+k+':</span> <span style="color:#00eaff;">'+v+'</span></div>'
+).join('')}
+</div>
+` : ''}
 
 </div>
 

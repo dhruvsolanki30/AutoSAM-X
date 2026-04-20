@@ -77,8 +77,8 @@ body{background:linear-gradient(135deg,#0b1c24,#132f3b,#1f4b5c);color:white;text
 
 <div class="upload-area" onclick="triggerFileInput()">
 <div>Upload your CT Scan</div>
-<div style="opacity:0.7; font-size:14px;">Click to browse</div>
-<input type="file" id="fileInput" hidden>
+<div style="opacity:0.7; font-size:14px;">Select .mhd + .raw files together, or a JPG/PNG image</div>
+<input type="file" id="fileInput" hidden multiple>
 </div>
 
 <div id="fileContainer">
@@ -139,9 +139,10 @@ document.getElementById("fileInput").click();
 }
 
 document.getElementById("fileInput").addEventListener("change",function(){
-let file=this.files[0];
-if(file){
-document.getElementById("fileName").innerText=file.name;
+let files=this.files;
+if(files.length>0){
+let names=Array.from(files).map(f=>f.name).join(", ");
+document.getElementById("fileName").innerText=names;
 document.getElementById("fileContainer").style.display="block";
 }
 });
@@ -160,7 +161,7 @@ document.getElementById("fileContainer").style.display="none";
 }
 
 async function runLoaderSteps(){
-let steps=["Loading CT Scan...","Preprocessing Image...","Extracting Region...","Running SAM Segmentation...","Refining Results...","Generating Report..."];
+let steps=["Loading CT Volume...","Extracting Region of Interest...","Running SAM Segmentation...","Refining Mask...","Computing Metrics...","Generating Report..."];
 let text=document.getElementById("loaderText");
 for(let i=0;i<steps.length;i++){
 text.innerText=steps[i];
@@ -169,19 +170,20 @@ await new Promise(r=>setTimeout(r,3400));
 }
 
 async function uploadImage(){
-let file=document.getElementById("fileInput").files[0];
-if(!file){
+let files=document.getElementById("fileInput").files;
+if(files.length===0){
 showToast("Please select a scan first");
 return;
 }
 
 let loader=document.getElementById("loaderPage");
 loader.style.display="flex";
-
 runLoaderSteps();
 
 let formData=new FormData();
-formData.append("file",file);
+for(let i=0;i<files.length;i++){
+formData.append("file",files[i]);
+}
 formData.append("organ","lungs");
 formData.append("pathology",selectedPathology);
 
@@ -190,28 +192,39 @@ let response=await fetch("/predict",{
 method:"POST",
 body:formData
 });
-
 let data=await response.json();
 console.log("API DATA:",data);
-
-let image_url=data.image_url||"";
-if(image_url && !image_url.startsWith("/static/")){
-image_url="/static/outputs/"+image_url.split("/").pop();
-}
-data.image_url=image_url;
 
 document.getElementById("loaderPage").style.display="none";
 closeModal();
 
+if(data.error){
+showToast("Error: "+data.error);
+return;
+}
+
+showResults(data);
+}catch(err){
+console.log(err);
+document.getElementById("loaderPage").style.display="none";
+showToast("Error analyzing scan");
+}
+}
+
+function showResults(data){
+let image_url=data.image_url||"";
+if(image_url && !image_url.startsWith("/static/")){
+image_url="/static/outputs/"+image_url.split("/").pop();
+}
+
 document.querySelector(".page-header").style.display="none";
 document.querySelector(".pathology-grid").style.display="none";
-
 document.getElementById("resultPage").style.display="block";
 
 let html=`
 <div style="text-align:center;">
 <div style="font-size:28px;color:#00eaff;margin-bottom:20px;">${data.detection||"Lung Analysis Result"}</div>
-${data.image_url?`<img src="${data.image_url}" style="width:100%;max-height:450px;object-fit:contain;border-radius:15px;background:black;padding:10px;margin-bottom:30px;">`:""}
+${image_url?`<img src="${image_url}" style="width:100%;max-height:450px;object-fit:contain;border-radius:15px;background:black;padding:10px;margin-bottom:30px;">`:""}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:25px;margin-top:30px;">
 <div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
 <div style="font-size:13px;opacity:0.6;">Confidence</div>
@@ -219,24 +232,17 @@ ${data.image_url?`<img src="${data.image_url}" style="width:100%;max-height:450p
 </div>
 <div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
 <div style="font-size:13px;opacity:0.6;">Severity</div>
-<div style="font-size:28px;color:${data.severity==="High"?"#ff4d4d":data.severity==="Medium"?"#ffaa00":"#00e676"};margin-top:8px;">${data.severity||"--"}</div>
+<div style="font-size:28px;color:${data.severity==="HIGH"||data.severity==="High"?"#ff4d4d":data.severity==="MEDIUM"||data.severity==="Medium"?"#ffaa00":"#00e676"};margin-top:8px;">${data.severity||"--"}</div>
 </div>
 <div style="padding:25px;border-radius:16px;background:linear-gradient(145deg,#0f2b36,#123c4a);text-align:center;">
-<div style="font-size:13px;opacity:0.6;">Risk Level</div>
-<div style="font-size:24px;color:#00eaff;margin-top:8px;">${data.risk_level||"--"}</div>
+<div style="font-size:13px;opacity:0.6;">Area</div>
+<div style="font-size:28px;color:#00eaff;margin-top:8px;">${data.tumor_area||"--"} px</div>
 </div>
 </div>
-${data.findings?`<div style="margin-top:30px;text-align:left;background:rgba(255,255,255,0.04);padding:20px;border-radius:12px;"><div style="color:#00eaff;margin-bottom:10px;">Findings:</div><pre style="color:#c8f8ff;font-size:13px;white-space:pre-wrap;word-wrap:break-word;">${JSON.stringify(data.findings,null,2)}</pre></div>`:""}
+${data.findings&&Object.keys(data.findings).length>0?`<div style="margin-top:30px;text-align:left;background:rgba(255,255,255,0.04);padding:20px;border-radius:12px;"><div style="color:#00eaff;margin-bottom:10px;font-weight:600;">Detailed Findings:</div>${Object.entries(data.findings).map(([k,v])=>`<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="opacity:0.6;">${k}:</span> <span style="color:#00eaff;">${v}</span></div>`).join("")}</div>`:""}
 </div>
 `;
-
 document.getElementById("resultContent").innerHTML=html;
-
-}catch(err){
-console.log(err);
-document.getElementById("loaderPage").style.display="none";
-showToast("Error analyzing scan");
-}
 }
 
 function resetToHome(){

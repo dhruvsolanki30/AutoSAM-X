@@ -194,6 +194,12 @@ body:formData
 let data=await response.json();
 console.log("API DATA:",data);
 
+if(data.error){
+document.getElementById("loaderPage").style.display="none";
+showToast("Error: "+data.error);
+return;
+}
+
 let image_url=data.image_url||"";
 if(image_url && !image_url.startsWith("/static/")){
 image_url="/static/outputs/"+image_url.split("/").pop();

@@ -194,34 +194,34 @@ function uploadImage() {
         if (data.error) {
             showToast('Error: ' + data.error);
             document.getElementById('loaderPage').style.display = 'none';
-        } else {
-            document.getElementById('detection').textContent = data.detection || 'Analyzed';
-            document.getElementById('confidence').textContent = ((data.confidence || 0.9) * 100).toFixed(1) + '%';
-            document.getElementById('severity').textContent = data.severity || 'Unknown';
-            
-            const severityElement = document.getElementById('severity');
-            const severityValue = data.severity || 'Unknown';
-            if (severityValue.toLowerCase() === 'high') {
-                severityElement.className = 'result-card-value severity-high';
-            } else if (severityValue.toLowerCase() === 'medium') {
-                severityElement.className = 'result-card-value severity-medium';
-            } else {
-                severityElement.className = 'result-card-value severity-low';
-            }
-
-            if (data.image_url) {
-                document.getElementById('resultImage').src = data.image_url;
-                document.getElementById('resultImage').style.display = 'block';
-            }
-
-            if (data.findings && Object.keys(data.findings).length > 0) {
-                document.getElementById('findingsCard').style.display = 'block';
-                document.getElementById('findings').textContent = JSON.stringify(data.findings, null, 2);
-            }
-
-            document.getElementById('loaderPage').style.display = 'none';
-            document.getElementById('resultPage').style.display = 'block';
+            return;
         }
+        document.getElementById('detection').textContent = data.detection || 'Analyzed';
+        document.getElementById('confidence').textContent = ((data.confidence || 0.9) * 100).toFixed(1) + '%';
+        document.getElementById('severity').textContent = data.severity || 'Unknown';
+            
+        const severityElement = document.getElementById('severity');
+        const severityValue = data.severity || 'Unknown';
+        if (severityValue.toLowerCase() === 'high') {
+            severityElement.className = 'result-card-value severity-high';
+        } else if (severityValue.toLowerCase() === 'medium') {
+            severityElement.className = 'result-card-value severity-medium';
+        } else {
+            severityElement.className = 'result-card-value severity-low';
+        }
+
+        if (data.image_url) {
+            document.getElementById('resultImage').src = data.image_url;
+            document.getElementById('resultImage').style.display = 'block';
+        }
+
+        if (data.findings && Object.keys(data.findings).length > 0) {
+            document.getElementById('findingsCard').style.display = 'block';
+            document.getElementById('findings').textContent = JSON.stringify(data.findings, null, 2);
+        }
+
+        document.getElementById('loaderPage').style.display = 'none';
+        document.getElementById('resultPage').style.display = 'block';
     })
     .catch(err => {
         console.error('Error:', err);

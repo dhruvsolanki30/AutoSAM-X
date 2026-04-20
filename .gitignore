@@ -3,31 +3,43 @@
 *.pt
 
 # Medical imaging data
-luna16/
-data/brain/images/
-data/
+lung/luna16/
+*.mhd
+*.raw
+*.nii
+*.nii.gz
+*.h5
+*.hdf5
+
+# Runtime uploads & outputs
+static/uploads/*
+static/outputs/*
+!static/uploads/.gitkeep
+!static/outputs/.gitkeep
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.cache
+*.egg-info/
+dist/
+build/
 
 # Environment
 venv/
 env/
+.env
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Misc
-*.nii
-*.nii.gz
 tempCodeRunnerFile.py
-runs/
-models/
