@@ -5,8 +5,8 @@ from segment_anything import sam_model_registry, SamPredictor
 
 # ---------------- AUTO PATH ----------------
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SAM_PATH = os.path.join(BASE_DIR, "models", "sam_vit_b_01ec64.pth")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SAM_PATH = os.path.join(BASE_DIR, "sam_vit_b.pth")
 
 if not os.path.exists(SAM_PATH):
     raise FileNotFoundError(f"❌ SAM model not found at: {SAM_PATH}")

@@ -11,7 +11,7 @@ from .visualize import save_final_output
 
 
 YOLO_PATH = "kidney/weights/yolo_kidney.pt"
-SAM_PATH = "kidney/weights/sam_vit_b.pth"
+SAM_PATH = "sam_vit_b.pth"
 UNET_PATH = "kidney/weights/unet_kidney.pth"
 
 
